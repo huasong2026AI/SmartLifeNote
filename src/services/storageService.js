@@ -1,4 +1,4 @@
-// Storage service for AI Smart Life Note with Author Key obfuscation and call counter
+// Storage service for AI Smart Life Note with Vite Environment Variable Support
 
 const NOTES_KEY = 'smart_life_notes';
 const SETTINGS_KEY = 'smart_life_settings';
@@ -15,18 +15,20 @@ export const DEFAULT_SETTINGS = {
   autoTagging: true
 };
 
-// Obfuscated author key to prevent plain text scanning on GitHub
-const _enc = 'QVEuQWI4Uk42TDNDbHM5REk2bmh3Sm9vNnFFOGZQSm9WaXdabkFCX0JxWldZTjZDZTMzc3c=';
-const getDecodedAuthorKey = () => {
-  try {
-    return atob(_enc);
-  } catch (e) {
-    return '';
-  }
-};
+// Valid author passwords (read from env or fallback list)
+const ENV_AUTHOR_PASS = import.meta.env.VITE_AUTHOR_PASSWORD;
+export const VALID_AUTHOR_PASSWORDS = [
+  ENV_AUTHOR_PASS,
+  '888888',
+  'VIP888',
+  'AUTHOR888',
+  'SMARTNOTE'
+].filter(Boolean);
 
-// Valid author passwords
-export const VALID_AUTHOR_PASSWORDS = ['888888', 'VIP888', 'AUTHOR888', 'SMARTNOTE'];
+// Read author key strictly from Vite Environment Variable or fallback
+const getEnvAuthorKey = () => {
+  return import.meta.env.VITE_GEMINI_API_KEY || '';
+};
 
 export const storageService = {
   // Load notes
@@ -108,7 +110,7 @@ export const storageService = {
     return next;
   },
 
-  // Resolve actual API Key & Model (using User's own key OR author key via password)
+  // Resolve actual API Key & Model (using User's own key OR author key via password / env)
   resolveEffectiveApiKeyAndModel: () => {
     const settings = storageService.getSettings();
     const userKey = (settings.apiKey || '').trim();
@@ -124,7 +126,8 @@ export const storageService = {
       };
     }
 
-    // 2. User entered valid author password
+    // 2. User entered valid author password or env password
+    const envAuthorKey = getEnvAuthorKey();
     if (pass && VALID_AUTHOR_PASSWORDS.includes(pass.toUpperCase())) {
       const count = storageService.getAuthorCallCount();
       const maxLimit = 10;
@@ -134,14 +137,24 @@ export const storageService = {
         );
       }
       return {
-        apiKey: getDecodedAuthorKey(),
-        model: 'gemini-3.1-flash-lite', // Strictly locked to gemini-3.1-flash-lite
+        apiKey: envAuthorKey,
+        model: 'gemini-3.1-flash-lite',
         isAuthorPassUsed: true,
         remainingCalls: maxLimit - count
       };
     }
 
-    // 3. No valid key or password
+    // 3. Fallback to Env variable if set directly
+    if (envAuthorKey) {
+      return {
+        apiKey: envAuthorKey,
+        model: settings.customModel || settings.model || 'gemini-3.1-flash-lite',
+        isAuthorPassUsed: false,
+        remainingCalls: Infinity
+      };
+    }
+
+    // 4. No valid key or password
     return {
       apiKey: '',
       model: settings.model,
