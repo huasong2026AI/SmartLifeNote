@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Camera, MapPin, Tag, Check, Sparkles, X, Image as ImageIcon } from 'lucide-react';
+import { Camera, MapPin, Tag, Check, Sparkles, X, Image as ImageIcon, RotateCw } from 'lucide-react';
 import { locationService } from '../services/locationService';
 
 export default function QuickNoteInput({ onSaveNote, editingNote, onCancelEdit }) {
@@ -135,46 +135,70 @@ export default function QuickNoteInput({ onSaveNote, editingNote, onCancelEdit }
           />
         </div>
 
-        {/* Media Photo Controls (Camera & Gallery) */}
-        <div className="flex items-center justify-end gap-2 bg-slate-50/90 p-2 rounded-2xl border border-slate-200/60">
-          {/* Direct Camera Button */}
-          <button
-            type="button"
-            onClick={() => cameraInputRef.current?.click()}
-            className="px-3 py-1.5 rounded-xl bg-teal-100/90 text-teal-800 hover:bg-teal-200 text-xs font-bold flex items-center gap-1.5 transition-all shadow-3xs"
-          >
-            <Camera className="w-3.5 h-3.5 text-teal-600" />
-            <span>直接拍照</span>
-          </button>
+        {/* MERGED ROW: Location Bar (Left) + Camera & Gallery Buttons (Right) */}
+        <div className="flex items-center justify-between gap-2 bg-sky-50/60 p-2 rounded-2xl border border-sky-100">
+          {/* Location Input & Refresh Button */}
+          <div className="flex items-center gap-1.5 flex-1 min-w-0 pr-1">
+            <MapPin className="w-3.5 h-3.5 text-sky-600 shrink-0" />
+            <input
+              type="text"
+              value={location}
+              onChange={(e) => setLocation(e.target.value)}
+              placeholder="地点标签..."
+              className="flex-1 bg-transparent text-[11px] font-semibold text-slate-700 placeholder-slate-400 outline-none truncate"
+            />
+            <button
+              type="button"
+              onClick={fetchCurrentLocation}
+              disabled={isLocating}
+              className="p-1 text-sky-700 hover:bg-sky-100 rounded-lg shrink-0 transition-all"
+              title="重新获取定位"
+            >
+              <RotateCw className={`w-3 h-3 ${isLocating ? 'animate-spin' : ''}`} />
+            </button>
+          </div>
 
-          {/* Choose from gallery button */}
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            className="px-3 py-1.5 rounded-xl bg-sky-100/90 text-sky-800 hover:bg-sky-200 text-xs font-bold flex items-center gap-1.5 transition-all shadow-3xs"
-          >
-            <ImageIcon className="w-3.5 h-3.5 text-sky-600" />
-            <span>相册图片</span>
-          </button>
+          {/* Photo Action Buttons */}
+          <div className="flex items-center gap-1.5 shrink-0">
+            {/* Direct Camera Button */}
+            <button
+              type="button"
+              onClick={() => cameraInputRef.current?.click()}
+              className="px-2.5 py-1.5 rounded-xl bg-teal-100 text-teal-800 hover:bg-teal-200 text-[11px] font-bold flex items-center gap-1 transition-all shadow-3xs"
+            >
+              <Camera className="w-3.5 h-3.5 text-teal-600" />
+              <span>直接拍照</span>
+            </button>
 
-          {/* Invisible File Input for Camera */}
-          <input
-            type="file"
-            ref={cameraInputRef}
-            accept="image/*"
-            capture="environment"
-            onChange={handleImageUpload}
-            className="hidden"
-          />
+            {/* Choose from gallery button */}
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="px-2.5 py-1.5 rounded-xl bg-sky-100 text-sky-800 hover:bg-sky-200 text-[11px] font-bold flex items-center gap-1 transition-all shadow-3xs"
+            >
+              <ImageIcon className="w-3.5 h-3.5 text-sky-600" />
+              <span>相册图片</span>
+            </button>
 
-          {/* Invisible File Input for Gallery */}
-          <input
-            type="file"
-            ref={fileInputRef}
-            accept="image/*"
-            onChange={handleImageUpload}
-            className="hidden"
-          />
+            {/* Invisible File Input for Camera */}
+            <input
+              type="file"
+              ref={cameraInputRef}
+              accept="image/*"
+              capture="environment"
+              onChange={handleImageUpload}
+              className="hidden"
+            />
+
+            {/* Invisible File Input for Gallery */}
+            <input
+              type="file"
+              ref={fileInputRef}
+              accept="image/*"
+              onChange={handleImageUpload}
+              className="hidden"
+            />
+          </div>
         </div>
 
         {/* Image Preview attachment if present */}
@@ -190,26 +214,6 @@ export default function QuickNoteInput({ onSaveNote, editingNote, onCancelEdit }
             </button>
           </div>
         )}
-
-        {/* Location Bar */}
-        <div className="flex items-center gap-2 bg-sky-50/50 p-2 rounded-2xl border border-sky-100">
-          <MapPin className="w-3.5 h-3.5 text-sky-600 shrink-0" />
-          <input
-            type="text"
-            value={location}
-            onChange={(e) => setLocation(e.target.value)}
-            placeholder="地点标签 (如: 家中/社区医院)"
-            className="flex-1 bg-transparent text-[11px] text-slate-700 placeholder-slate-400 outline-none"
-          />
-          <button
-            type="button"
-            onClick={fetchCurrentLocation}
-            disabled={isLocating}
-            className="text-[10px] px-2 py-0.5 rounded-lg bg-sky-100 text-sky-800 hover:bg-sky-200"
-          >
-            {isLocating ? '定位中...' : '重测定位'}
-          </button>
-        </div>
 
         {/* Dynamic Tags Input */}
         <div className="space-y-1">
