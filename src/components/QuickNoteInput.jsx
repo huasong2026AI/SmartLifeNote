@@ -137,11 +137,24 @@ export default function QuickNoteInput({ onSaveNote, editingNote, onCancelEdit }
           />
         </div>
 
-        {/* COMBINED SINGLE ROW: Location (Left) + Unified Photo Button (Right) */}
-        <div className="flex items-center justify-between gap-2 bg-sky-50/70 p-2.5 rounded-2xl border border-sky-100">
-          {/* Location Bar with Pin + Location Input + Prominent Refresh Button */}
+        {/* COMBINED SINGLE ROW: Left (Refresh Icon Button + Location Input) | Right (Single Photo Button) */}
+        <div className="flex items-center justify-between gap-2 bg-sky-50/70 p-2 rounded-2xl border border-sky-100">
+          {/* Left: Refresh Button + Location Pin + Location Input */}
           <div className="flex items-center gap-1.5 flex-1 min-w-0 pr-1">
-            <MapPin className="w-4 h-4 text-sky-600 shrink-0" />
+            {/* Refresh Button Placed Prominently on Left */}
+            <button
+              type="button"
+              onClick={fetchCurrentLocation}
+              disabled={isLocating}
+              className="p-1.5 bg-sky-100 hover:bg-sky-200 text-sky-700 rounded-xl text-[10px] font-bold shrink-0 flex items-center gap-1 transition-all"
+              title="重新获取定位"
+            >
+              <RotateCw className={`w-3.5 h-3.5 ${isLocating ? 'animate-spin' : ''}`} />
+              <span className="hidden xs:inline">{isLocating ? '定位中' : '定位'}</span>
+            </button>
+
+            <MapPin className="w-3.5 h-3.5 text-sky-600 shrink-0" />
+            
             <input
               type="text"
               value={location}
@@ -149,19 +162,9 @@ export default function QuickNoteInput({ onSaveNote, editingNote, onCancelEdit }
               placeholder="地点标签..."
               className="flex-1 bg-transparent text-xs font-semibold text-slate-700 placeholder-slate-400 outline-none truncate"
             />
-            <button
-              type="button"
-              onClick={fetchCurrentLocation}
-              disabled={isLocating}
-              className="px-2 py-1 bg-sky-100/90 text-sky-800 hover:bg-sky-200 rounded-xl text-[10px] font-bold shrink-0 flex items-center gap-1 transition-all"
-              title="重新获取当前定位"
-            >
-              <RotateCw className={`w-3 h-3 ${isLocating ? 'animate-spin' : ''}`} />
-              <span>{isLocating ? '定位中' : '刷新定位'}</span>
-            </button>
           </div>
 
-          {/* Single Unified "拍照/图片" Action Button */}
+          {/* Right: Single Unified "拍照/图片" Action Button */}
           <div className="relative shrink-0">
             <button
               type="button"
