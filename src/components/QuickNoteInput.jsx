@@ -9,6 +9,7 @@ export default function QuickNoteInput({ onSaveNote, editingNote, onCancelEdit }
   const [tagInput, setTagInput] = useState('');
   const [imagePreview, setImagePreview] = useState(null);
   const [isLocating, setIsLocating] = useState(false);
+  const [showPhotoOptions, setShowPhotoOptions] = useState(false); // Action modal for photo choices
 
   const fileInputRef = useRef(null);
   const cameraInputRef = useRef(null);
@@ -53,6 +54,7 @@ export default function QuickNoteInput({ onSaveNote, editingNote, onCancelEdit }
       reader.readAsDataURL(file);
     }
     e.target.value = '';
+    setShowPhotoOptions(false);
   };
 
   // Tag manipulation
@@ -135,50 +137,62 @@ export default function QuickNoteInput({ onSaveNote, editingNote, onCancelEdit }
           />
         </div>
 
-        {/* MERGED ROW: Location Bar (Left) + Camera & Gallery Buttons (Right) */}
-        <div className="flex items-center justify-between gap-2 bg-sky-50/60 p-2 rounded-2xl border border-sky-100">
-          {/* Location Input & Refresh Button */}
+        {/* COMBINED SINGLE ROW: Location (Left) + Unified Photo Button (Right) */}
+        <div className="flex items-center justify-between gap-2 bg-sky-50/70 p-2.5 rounded-2xl border border-sky-100">
+          {/* Location Bar with Pin + Location Input + Prominent Refresh Button */}
           <div className="flex items-center gap-1.5 flex-1 min-w-0 pr-1">
-            <MapPin className="w-3.5 h-3.5 text-sky-600 shrink-0" />
+            <MapPin className="w-4 h-4 text-sky-600 shrink-0" />
             <input
               type="text"
               value={location}
               onChange={(e) => setLocation(e.target.value)}
               placeholder="地点标签..."
-              className="flex-1 bg-transparent text-[11px] font-semibold text-slate-700 placeholder-slate-400 outline-none truncate"
+              className="flex-1 bg-transparent text-xs font-semibold text-slate-700 placeholder-slate-400 outline-none truncate"
             />
             <button
               type="button"
               onClick={fetchCurrentLocation}
               disabled={isLocating}
-              className="p-1 text-sky-700 hover:bg-sky-100 rounded-lg shrink-0 transition-all"
-              title="重新获取定位"
+              className="px-2 py-1 bg-sky-100/90 text-sky-800 hover:bg-sky-200 rounded-xl text-[10px] font-bold shrink-0 flex items-center gap-1 transition-all"
+              title="重新获取当前定位"
             >
               <RotateCw className={`w-3 h-3 ${isLocating ? 'animate-spin' : ''}`} />
+              <span>{isLocating ? '定位中' : '刷新定位'}</span>
             </button>
           </div>
 
-          {/* Photo Action Buttons */}
-          <div className="flex items-center gap-1.5 shrink-0">
-            {/* Direct Camera Button */}
+          {/* Single Unified "拍照/图片" Action Button */}
+          <div className="relative shrink-0">
             <button
               type="button"
-              onClick={() => cameraInputRef.current?.click()}
-              className="px-2.5 py-1.5 rounded-xl bg-teal-100 text-teal-800 hover:bg-teal-200 text-[11px] font-bold flex items-center gap-1 transition-all shadow-3xs"
+              onClick={() => setShowPhotoOptions(!showPhotoOptions)}
+              className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-teal-500 to-sky-500 hover:from-teal-600 hover:to-sky-600 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm shadow-sky-200 active:scale-95 transition-all"
             >
-              <Camera className="w-3.5 h-3.5 text-teal-600" />
-              <span>直接拍照</span>
+              <Camera className="w-3.5 h-3.5" />
+              <span>拍照/图片</span>
             </button>
 
-            {/* Choose from gallery button */}
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              className="px-2.5 py-1.5 rounded-xl bg-sky-100 text-sky-800 hover:bg-sky-200 text-[11px] font-bold flex items-center gap-1 transition-all shadow-3xs"
-            >
-              <ImageIcon className="w-3.5 h-3.5 text-sky-600" />
-              <span>相册图片</span>
-            </button>
+            {/* Choice Popover Modal */}
+            {showPhotoOptions && (
+              <div className="absolute right-0 top-10 z-30 w-36 bg-white rounded-2xl shadow-xl border border-sky-100 p-1.5 space-y-1 animate-in fade-in zoom-in-95 duration-150">
+                <button
+                  type="button"
+                  onClick={() => cameraInputRef.current?.click()}
+                  className="w-full px-2.5 py-2 rounded-xl text-left text-xs font-bold text-slate-700 hover:bg-teal-50 hover:text-teal-700 flex items-center gap-2 transition-all"
+                >
+                  <Camera className="w-4 h-4 text-teal-600" />
+                  <span>相机拍照</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="w-full px-2.5 py-2 rounded-xl text-left text-xs font-bold text-slate-700 hover:bg-sky-50 hover:text-sky-700 flex items-center gap-2 transition-all border-t border-slate-100"
+                >
+                  <ImageIcon className="w-4 h-4 text-sky-600" />
+                  <span>手机相册</span>
+                </button>
+              </div>
+            )}
 
             {/* Invisible File Input for Camera */}
             <input
