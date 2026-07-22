@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Mic, MicOff, Camera, MapPin, Tag, Check, Volume2, Globe, Sparkles, X } from 'lucide-react';
+import { Mic, MicOff, Camera, MapPin, Tag, Check, Volume2, Globe, Sparkles, X, Image as ImageIcon } from 'lucide-react';
 import { locationService } from '../services/locationService';
 import { speechService } from '../services/speechService';
 
@@ -16,6 +16,8 @@ export default function QuickNoteInput({ onSaveNote, editingNote, onCancelEdit }
   const [isLocating, setIsLocating] = useState(false);
 
   const baseContentRef = useRef('');
+  const fileInputRef = useRef(null);
+  const cameraInputRef = useRef(null);
 
   // Reset speech-to-text state cleanly
   const resetSpeechState = () => {
@@ -32,7 +34,15 @@ export default function QuickNoteInput({ onSaveNote, editingNote, onCancelEdit }
       setLocation(editingNote.location || '');
       setTags(editingNote.tags || []);
       setImagePreview(editingNote.imageUrl || null);
-      setAudioRecording(editingNote.audioUrl ? { audioUrl: editingNote.audioUrl } : null);
+      setAudioRecording(
+        editingNote.audioUrl
+          ? {
+              audioUrl: editingNote.audioUrl,
+              audioBase64: editingNote.audioBase64 || null,
+              audioMimeType: editingNote.audioMimeType || 'audio/webm'
+            }
+          : null
+      );
     } else {
       setContent('');
       setImagePreview(null);
@@ -66,7 +76,9 @@ export default function QuickNoteInput({ onSaveNote, editingNote, onCancelEdit }
   // Toggle real-time speech to text with language support
   const handleToggleSpeechToText = () => {
     if (!speechService.isSpeechRecognitionSupported()) {
-      alert('您的浏览器不支持实时语音识别，请直接输入文本或录音');
+      alert(
+        '您的浏览器暂不支持实时语音识别接口（手机浏览器可能会被墙导致失效）。您可以点击下方的“保存录音音频”录制声音，AI 智能分析时会自动听写该音频。'
+      );
       return;
     }
 
@@ -116,8 +128,17 @@ export default function QuickNoteInput({ onSaveNote, editingNote, onCancelEdit }
     if (isRecordingVoice) {
       const audioResult = await speechService.stopAudioRecording();
       setIsRecordingVoice(false);
-      if (audioResult) {
-        setAudioRecording(audioResult);
+      if (audioResult && audioResult.audioBlob) {
+        // Convert audio to Base64 dataURL for Multimodal Gemini analysis
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          setAudioRecording({
+            audioUrl: audioResult.audioUrl,
+            audioBase64: reader.result,
+            audioMimeType: audioResult.audioBlob.type || 'audio/webm'
+          });
+        };
+        reader.readAsDataURL(audioResult.audioBlob);
       }
     } else {
       try {
@@ -129,7 +150,7 @@ export default function QuickNoteInput({ onSaveNote, editingNote, onCancelEdit }
     }
   };
 
-  // Handle Photo input
+  // Handle Photo input (converts to Base64)
   const handleImageUpload = (e) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -139,6 +160,8 @@ export default function QuickNoteInput({ onSaveNote, editingNote, onCancelEdit }
       };
       reader.readAsDataURL(file);
     }
+    // Reset value so selecting the same file triggers onChange again
+    e.target.value = '';
   };
 
   // Tag manipulation
@@ -181,6 +204,8 @@ export default function QuickNoteInput({ onSaveNote, editingNote, onCancelEdit }
       tags: tags.length > 0 ? tags : ['日常'],
       aiAnalyzed: editingNote ? editingNote.aiAnalyzed : false,
       audioUrl: audioRecording ? audioRecording.audioUrl : null,
+      audioBase64: audioRecording ? audioRecording.audioBase64 : null,
+      audioMimeType: audioRecording ? audioRecording.audioMimeType : null,
       imageUrl: imagePreview || null
     };
 
@@ -281,32 +306,59 @@ export default function QuickNoteInput({ onSaveNote, editingNote, onCancelEdit }
             </div>
           </div>
 
-          <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-200/50">
+          <div className="flex items-center justify-between gap-1.5 pt-1 border-t border-slate-200/50">
             {/* Micro Audio Recording toggle */}
             <button
               type="button"
               onClick={handleToggleAudioRecording}
-              className={`px-2.5 py-1.5 rounded-xl text-[11px] font-medium flex items-center gap-1 transition-all ${
+              className={`px-2 py-1.5 rounded-xl text-[10px] font-bold flex items-center gap-1 transition-all ${
                 isRecordingVoice
                   ? 'bg-red-500 text-white animate-bounce shadow-sm'
-                  : 'bg-blue-100/80 text-blue-800 hover:bg-blue-200'
+                  : 'bg-blue-100 text-blue-800 hover:bg-blue-200'
               }`}
             >
               <Volume2 className="w-3.5 h-3.5" />
               <span>{isRecordingVoice ? '录音中...' : '保存录音音频'}</span>
             </button>
 
-            {/* Photo Capture / Upload */}
-            <label className="px-2.5 py-1.5 rounded-xl bg-teal-100/80 text-teal-800 hover:bg-teal-200 text-[11px] font-medium flex items-center gap-1 cursor-pointer transition-all">
+            {/* Direct Camera Button (Using capture="environment" for Chrome/Safari mobile camera launch) */}
+            <button
+              type="button"
+              onClick={() => cameraInputRef.current?.click()}
+              className="px-2 py-1.5 rounded-xl bg-teal-100 text-teal-800 hover:bg-teal-200 text-[10px] font-bold flex items-center gap-1 transition-all"
+            >
               <Camera className="w-3.5 h-3.5" />
-              <span>拍照/图片</span>
-              <input
-                type="file"
-                accept="image/*"
-                onChange={handleImageUpload}
-                className="hidden"
-              />
-            </label>
+              <span>直接拍照</span>
+            </button>
+
+            {/* Choose from gallery button */}
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="px-2 py-1.5 rounded-xl bg-sky-100 text-sky-800 hover:bg-sky-200 text-[10px] font-bold flex items-center gap-1 transition-all"
+            >
+              <ImageIcon className="w-3.5 h-3.5" />
+              <span>相册图片</span>
+            </button>
+
+            {/* Invisible File Input for Camera */}
+            <input
+              type="file"
+              ref={cameraInputRef}
+              accept="image/*"
+              capture="environment"
+              onChange={handleImageUpload}
+              className="hidden"
+            />
+
+            {/* Invisible File Input for Gallery */}
+            <input
+              type="file"
+              ref={fileInputRef}
+              accept="image/*"
+              onChange={handleImageUpload}
+              className="hidden"
+            />
           </div>
         </div>
 
