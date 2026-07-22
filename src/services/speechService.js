@@ -32,7 +32,7 @@ export class SpeechService {
 
   startSpeechToText(onResult, onError, langCode = 'zh-CN') {
     if (!this.recognition) {
-      if (onError) onError('当前浏览器不支持实时语音识别，请直接输入文本或录音');
+      if (onError) onError('当前浏览器不支持 Web Speech 接口，请更换浏览器或使用手机键盘语音功能');
       return;
     }
 
@@ -61,15 +61,20 @@ export class SpeechService {
 
     this.recognition.onerror = (event) => {
       console.warn('Speech recognition error:', event.error);
+      // Ignore non-fatal temporary pauses like 'no-speech'
+      if (event.error === 'no-speech' || event.error === 'audio-capture') {
+        return;
+      }
       if (onError) onError(`语音识别提示: ${event.error}`);
     };
 
     this.recognition.onend = () => {
+      // Auto-restart if user is still in listening mode
       if (this.isListening) {
         try {
           this.recognition.start();
         } catch (e) {
-          // Ignore restart error
+          // Ignore if already started
         }
       }
     };
