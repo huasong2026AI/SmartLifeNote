@@ -1,109 +1,29 @@
-// AI Batch Processing Service with Detailed Forecasts, Learning Coach, and Knowledge Archiving
+// AI Batch Processing Service with Multimodal Audio/Vision and Direct Transcription
 import { storageService } from './storageService';
 
-export const SYSTEM_PROMPT = `你是一个智能随手记 AI 归类、预测与深度总结分析助手。
-请对用户录入的随手记进行三级目录归类，并在归类的基础上，调用 AI 对这批数据生成以下四大核心预测与总结模块：
+export const SYSTEM_PROMPT = `你是一个智能随手记 AI 归类与结构化分析助手。
+用户的随手记包含乱序的碎片信息，其中可能附带录音音频和拍照图片。
 
-【1. 动态周期预测与主动提醒 (dynamic_forecasts)】
-根据消费、设备维护、健康检查等记录，自动推算下一次发生的预测时间、内容：
-- 用品消耗预测: 如"买10kg猫粮" ➔ 结合标准猫咪消耗推算耗尽天数，自动生成提前5天的补货提醒。
-- 设备/车辆保养: 记录更换滤芯或保养 ➔ 推算6-12个月后下一次维护提醒，并在提醒中附加【上次的时间、花费和店铺上下文】。
-- 定期健康检修: 如"洗牙/体检" ➔ 创建6个月或1年后的复查提醒。
+请对用户录入的所有随手记进行【三级目录】式的上下文归类，并在归类的基础上，同步生成对应的【预测提醒、知识总结与财务小计】。格式与层级必须与三级目录保持一致！
 
-【2. 事件闭环与状态追踪提醒 (timeline_followups)】
-对于不是一次性结束的事件（如生病、寄出退货快递、更证申请），AI 主动开启持续追踪，提示用户在第 3 天、第 10 天等关键节点进行状态确认与清理闭环。
-- 生病用药追踪: 第3天提示"症状缓解了吗？"；第10天提示"是否有过期药需要清理？"
-- 退货/维权进度: 寄出3天后提示"检查商家是否已完成退款流程"。
-- 业务办理进度: 更换驾照后7天提示"检查是否已收到新证件"。
+标准【一级大类 (main_category)】分类体系参照：
+1. "工作事业" (包含: 岗位工作、开会、项目进展、工作规划、办公事务等，严禁把工作归类到日常琐事！)
+2. "学习提升" (包含: 日语学习、英语学习、学科定理、技能培训、读书笔记等)
+3. "求医问诊" (包含: 感冒发烧病程追踪、看诊开药、体检检查、健康用药等)
+4. "娱乐休闲" (包含: 影视电影、音乐、电子游戏、旅游度假、户外运动等)
+5. "家庭生活" (包含: 车辆出行、汽车保养、保养滤芯、加油洗车、宠物照顾、猫粮采购、家电维修、日常采购等，车辆出行属于生活大类！)
+6. "财务消费" (包含: 账单消费、投资理财、日常开支汇总等)
 
-【3. 学科与技能指导 (learning_coach)】
-针对学习（外语、错题、定理）笔记，充当动态教练：
-- 艾宾浩斯抗遗忘变式复习: 日/英语记录 ➔ 生成第 3 天/第 7 天的变式造句练习（如日语“明日、映画を見に行きます” ➔ 提示“请试着用此句型翻译造句：明天去吃寿司”）。
-- 举一反三变式题: 错题记录 ➔ 提炼考点（如“韦达定理”），自动现场生成 2 道同考点的新变式题供用户自测。
-- 薄弱项诊断: 诊断近期错误率较高的知识模块并主动推送专项学习建议。
+结构要求：
+1. 【一级大类 (main_category)】：直接使用上述标准大类名称。
+2. 【二级小类/主题 (sub_category)】：在大类下细分具体主题或病程 Timeline。
+3. 【三级关联内容】：
+   - 包含具体随手记条目 (records)
+   - 衍生【预测提醒 (sub_predictive_reminders)】：针对该小类的未来预测提醒
+   - 衍生【知识复习总结 (sub_knowledge_cards)】：针对该小类的学习知识卡片
+   - 衍生【财务小计 (sub_financial_total)】：针对该小类的金额统计
 
-【4. 经验沉淀与“个人法则”归纳 (knowledge_archiving)】
-多条记录围绕同一主题或时间段时，自动触发凝练：
-- 病程/维修全过程档案: 生病就医多条记录 ➔ 自动归纳为一篇如《2026年7月甲流就医与康复过程档案》（含症状演变、所用药及见效时间）。
-- 避坑/经验法则提取: 发现吃某药胃痛或某店体验差 ➔ 提炼为个人规则（如“下次开药避开XX药”、“洗车避开XX店”）。
-
-请严格输出合法 JSON 对象，不要包含 markdown 代码块包围符以外的内容，格式结构必须如下：
-{
-  "hierarchical_categories": [
-    {
-      "main_category": "大类名称 (如: 工作事业 / 学习提升 / 娱乐休闲 / 求医问诊 / 家庭生活 / 财务消费)",
-      "subcategories": [
-        {
-          "sub_category": "小类名称",
-          "description": "脉络说明",
-          "records": [
-            {
-              "note_id": "笔记ID",
-              "event_time": "发生时间",
-              "object": "核心对象/关键字",
-              "content_summary": "精炼摘要"
-            }
-          ],
-          "sub_financial_total": 0
-        }
-      ]
-    }
-  ],
-  "dynamic_forecasts": [
-    {
-      "category": "大类",
-      "subject": "预测对象",
-      "prediction_text": "推算结论",
-      "reminder_date": "预测提醒日期/时间",
-      "context_details": "附带的上次时间、花费、店铺上下文"
-    }
-  ],
-  "timeline_followups": [
-    {
-      "title": "追踪事件名称",
-      "day_3_question": "第3天主动询问文案",
-      "day_10_question": "第10天闭环整理提示",
-      "current_status": "当前事件状态"
-    }
-  ],
-  "learning_coach": {
-    "ebbinghaus_variants": [
-      {
-        "original_record": "原句/单词",
-        "review_day": "第3天 / 第7天",
-        "variant_practice_prompt": "变式造句/翻译练习提示 (如：请试着用该句型翻译‘明天去吃寿司’)"
-      }
-    ],
-    "variant_questions": [
-      {
-        "concept": "考点 (如: 韦达定理)",
-        "question_1": "自测新题1",
-        "question_2": "自测新题2"
-      }
-    ],
-    "weakness_diagnosis": "诊断与专项学习建议"
-  },
-  "knowledge_archiving": {
-    "full_case_archives": [
-      {
-        "title": "病程/事件全过程档案名称",
-        "summary": "治疗/维修过程归纳总结"
-      }
-    ],
-    "personal_rules": [
-      {
-        "type": "避坑 / 经验",
-        "rule_content": "凝练成的避坑或经验法则"
-      }
-    ]
-  },
-  "global_financial_summary": {
-    "total_expense": 0,
-    "items": [
-      { "item": "明细", "amount": 0, "category": "大类" }
-    ]
-  }
-}`;
+输出格式要求：必须严格返回合法 JSON 对象，不要包含 markdown 代码块包围符以外的内容。`;
 
 const getBase64DataOnly = (dataUrl) => {
   if (!dataUrl) return '';
@@ -118,6 +38,59 @@ const getMimeTypeFromDataUrl = (dataUrl, fallback = 'image/jpeg') => {
 };
 
 export const aiService = {
+  // Transcribe audio using Gemini's native multimodal capabilities
+  transcribeAudio: async (audioBase64, mimeType, settings) => {
+    const resolved = storageService.resolveEffectiveApiKeyAndModel();
+    const { apiKey, model } = resolved;
+
+    if (!apiKey || !apiKey.trim()) {
+      throw new Error('未检测到 API Key，请先配置 Key 才能进行语音转字。');
+    }
+
+    const cleanBase64 = getBase64DataOnly(audioBase64);
+    const apiModel = model.replace('gemini-3.1-flash-lite', 'gemini-1.5-flash'); // Fallback model check if needed
+
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(
+      apiModel
+    )}:generateContent?key=${apiKey}`;
+
+    const body = {
+      contents: [
+        {
+          role: 'user',
+          parts: [
+            {
+              inlineData: {
+                mimeType: mimeType || 'audio/webm',
+                data: cleanBase64
+              }
+            },
+            {
+              text: '请仔细听这段录音，并将其精准转写为文本内容。只返回转写文本本身，不需要包含任何其他多余前缀、说明或标点标记（如有日语或英语，请准确输出日文假名/汉字或英文单词，避免乱码）。'
+            }
+          ]
+        }
+      ],
+      generationConfig: {
+        temperature: 0.1
+      }
+    };
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      throw new Error(`语音转写失败: ${errText}`);
+    }
+
+    const data = await response.json();
+    return (data.candidates?.[0]?.content?.parts?.[0]?.text || '').trim();
+  },
+
   // Main batch processing method for actual user notes
   batchProcessNotes: async (notes, settings) => {
     if (!notes || notes.length === 0) {
@@ -145,7 +118,7 @@ export const aiService = {
             }]\n内容: ${n.content}`
         )
         .join('\n\n');
-      const promptText = `请对以下 ${notes.length} 条实际随手记进行三级目录归类，并在归类的基础上，提取预测提醒、闭环追踪、学习教练和经验个人法则，输出要求的 JSON。\n\n实际记录列表：\n${notesPayload}`;
+      const promptText = `请对以下 ${notes.length} 条实际随手记进行三级目录归类分析并衍生预测总结，输出要求的 JSON。\n\n实际记录列表：\n${notesPayload}`;
       const result = await aiService.callDeepSeekAPI(apiKey, model, promptText);
       if (isAuthorPassUsed) storageService.incrementAuthorCallCount();
       return result;

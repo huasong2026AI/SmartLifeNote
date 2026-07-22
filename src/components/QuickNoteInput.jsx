@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Mic, MicOff, Camera, MapPin, Tag, Check, Volume2, Globe, Sparkles, X, Image as ImageIcon } from 'lucide-react';
+import { Mic, MicOff, Camera, MapPin, Tag, Check, Volume2, Globe, Sparkles, X, Image as ImageIcon, Loader } from 'lucide-react';
 import { locationService } from '../services/locationService';
 import { speechService } from '../services/speechService';
+import { aiService } from '../services/aiService';
 
 export default function QuickNoteInput({ onSaveNote, editingNote, onCancelEdit }) {
   const [content, setContent] = useState('');
@@ -10,6 +11,7 @@ export default function QuickNoteInput({ onSaveNote, editingNote, onCancelEdit }
   const [tagInput, setTagInput] = useState('');
   const [isRecordingVoice, setIsRecordingVoice] = useState(false);
   const [isSpeechToText, setIsSpeechToText] = useState(false);
+  const [isTranscribing, setIsTranscribing] = useState(false); // AI real-time transcription status
   const [speechLang, setSpeechLang] = useState('zh-CN');
   const [imagePreview, setImagePreview] = useState(null);
   const [audioRecording, setAudioRecording] = useState(null);
@@ -73,11 +75,11 @@ export default function QuickNoteInput({ onSaveNote, editingNote, onCancelEdit }
     setIsLocating(false);
   };
 
-  // Toggle real-time speech to text with language support
+  // Toggle real-time speech to text (Browser API fallback)
   const handleToggleSpeechToText = () => {
     if (!speechService.isSpeechRecognitionSupported()) {
       alert(
-        '您的浏览器暂不支持实时语音识别接口（手机浏览器可能会被墙导致失效）。您可以点击下方的“保存录音音频”录制声音，AI 智能分析时会自动听写该音频。'
+        '提示：当前手机浏览器不支持实时语音监听。您可以直接使用下方「保存录音音频」进行录音，录音结束后系统会自动调用 Google Gemini 大模型进行高精确度文字转写！'
       );
       return;
     }
@@ -104,7 +106,7 @@ export default function QuickNoteInput({ onSaveNote, editingNote, onCancelEdit }
     }
   };
 
-  // Switch speech recognition language dynamically
+  // Switch speech recognition language dynamically (Browser API)
   const handleSpeechLangChange = (lang) => {
     setSpeechLang(lang);
     if (isSpeechToText) {
@@ -123,20 +125,41 @@ export default function QuickNoteInput({ onSaveNote, editingNote, onCancelEdit }
     }
   };
 
-  // Toggle Audio recording
+  // Toggle Audio recording and trigger Automatic Gemini transcription
   const handleToggleAudioRecording = async () => {
     if (isRecordingVoice) {
       const audioResult = await speechService.stopAudioRecording();
       setIsRecordingVoice(false);
+      
       if (audioResult && audioResult.audioBlob) {
+        setIsTranscribing(true);
         // Convert audio to Base64 dataURL for Multimodal Gemini analysis
         const reader = new FileReader();
-        reader.onloadend = () => {
+        reader.onloadend = async () => {
+          const base64data = reader.result;
           setAudioRecording({
             audioUrl: audioResult.audioUrl,
-            audioBase64: reader.result,
+            audioBase64: base64data,
             audioMimeType: audioResult.audioBlob.type || 'audio/webm'
           });
+
+          // Trigger automatic transcription via Gemini
+          try {
+            const transcribedText = await aiService.transcribeAudio(
+              base64data,
+              audioResult.audioBlob.type || 'audio/webm',
+              {}
+            );
+            if (transcribedText) {
+              setContent((prev) =>
+                prev ? `${prev.trim()}\n${transcribedText}` : transcribedText
+              );
+            }
+          } catch (err) {
+            console.error('Gemini transcription failed, fallback to audio only:', err);
+          } finally {
+            setIsTranscribing(false);
+          }
         };
         reader.readAsDataURL(audioResult.audioBlob);
       }
@@ -160,7 +183,6 @@ export default function QuickNoteInput({ onSaveNote, editingNote, onCancelEdit }
       };
       reader.readAsDataURL(file);
     }
-    // Reset value so selecting the same file triggers onChange again
     e.target.value = '';
   };
 
@@ -240,14 +262,29 @@ export default function QuickNoteInput({ onSaveNote, editingNote, onCancelEdit }
 
       <form onSubmit={handleSubmit} className="space-y-3">
         {/* Main Text Input Area */}
-        <div>
+        <div className="relative">
           <textarea
             value={content}
             onChange={(e) => setContent(e.target.value)}
-            placeholder="在此记录想法、账单、健康状况、句子口诀..."
+            placeholder={
+              isTranscribing
+                ? '🎙️ AI 正在听写解析您的录音，请稍候...'
+                : '在此记录想法、账单、健康状况、句子口诀...'
+            }
+            disabled={isTranscribing}
             rows={3}
-            className="w-full p-3 rounded-2xl bg-sky-50/40 border border-sky-200/60 focus:bg-white focus:border-sky-400 focus:ring-2 focus:ring-sky-200 text-xs text-slate-800 placeholder-slate-400 resize-none transition-all outline-none"
+            className={`w-full p-3 rounded-2xl border text-xs text-slate-800 placeholder-slate-400 resize-none transition-all outline-none ${
+              isTranscribing
+                ? 'bg-amber-50/50 border-amber-300 ring-2 ring-amber-200 animate-pulse'
+                : 'bg-sky-50/40 border-sky-200/60 focus:bg-white focus:border-sky-400 focus:ring-2 focus:ring-sky-200'
+            }`}
           />
+          {isTranscribing && (
+            <div className="absolute right-3 bottom-3 flex items-center gap-1.5 text-[10px] text-amber-700 font-bold bg-white/95 px-2 py-1 rounded-lg border border-amber-200">
+              <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping" />
+              <span>AI 转写中...</span>
+            </div>
+          )}
         </div>
 
         {/* Media Attachments & Voice Controls */}
@@ -307,21 +344,26 @@ export default function QuickNoteInput({ onSaveNote, editingNote, onCancelEdit }
           </div>
 
           <div className="flex items-center justify-between gap-1.5 pt-1 border-t border-slate-200/50">
-            {/* Micro Audio Recording toggle */}
+            {/* Micro Audio Recording toggle with AI Autotranscribe */}
             <button
               type="button"
               onClick={handleToggleAudioRecording}
+              disabled={isTranscribing}
               className={`px-2 py-1.5 rounded-xl text-[10px] font-bold flex items-center gap-1 transition-all ${
                 isRecordingVoice
                   ? 'bg-red-500 text-white animate-bounce shadow-sm'
+                  : isTranscribing
+                  ? 'bg-amber-100 text-amber-800 opacity-60 cursor-not-allowed'
                   : 'bg-blue-100 text-blue-800 hover:bg-blue-200'
               }`}
             >
               <Volume2 className="w-3.5 h-3.5" />
-              <span>{isRecordingVoice ? '录音中...' : '保存录音音频'}</span>
+              <span>
+                {isRecordingVoice ? '点此停止并转字' : isTranscribing ? '正在转字...' : '录音 + AI转字'}
+              </span>
             </button>
 
-            {/* Direct Camera Button (Using capture="environment" for Chrome/Safari mobile camera launch) */}
+            {/* Direct Camera Button */}
             <button
               type="button"
               onClick={() => cameraInputRef.current?.click()}
@@ -450,7 +492,8 @@ export default function QuickNoteInput({ onSaveNote, editingNote, onCancelEdit }
         <div className="pt-1">
           <button
             type="submit"
-            className="w-full py-2.5 rounded-2xl bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700 text-white text-xs font-bold shadow-md shadow-sky-200 active:scale-[0.99] transition-all flex items-center justify-center gap-1.5"
+            disabled={isTranscribing}
+            className="w-full py-2.5 rounded-2xl bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700 text-white text-xs font-bold shadow-md shadow-sky-200 active:scale-[0.99] transition-all flex items-center justify-center gap-1.5 disabled:opacity-50"
           >
             <Check className="w-4 h-4" />
             {editingNote ? '保存修改记录' : '保存记录并自动打标签'}
